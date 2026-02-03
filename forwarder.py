@@ -9,8 +9,25 @@ from argparse import ArgumentParser
 
 init(autoreset=True)
 
-logger = logging.getLogger("serverLogger")
-logging.basicConfig(format=f"%(symb)s %(asctime)s %(message)s", level=logging.DEBUG)
+class ColorfulFormatter(logging.Formatter):
+    def format(self, record):
+        style = {
+            "DEBUG": Fore.GREEN,
+            "ERROR": Fore.LIGHTRED_EX,
+            "WARNING": Fore.YELLOW
+        }.get(record.levelname, Fore.RESET)
+
+        return f"{style}[+]{Fore.RESET} {super().format(record)}"
+
+
+
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
+handler.setLevel(logging.DEBUG)
+formatter = ColorfulFormatter("[%(asctime)s] %(message)s")
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 
 def forward_conn(sender: socket.socket, receiver: socket.socket, addr):
@@ -19,14 +36,14 @@ def forward_conn(sender: socket.socket, receiver: socket.socket, addr):
         if buffer:
             receiver.sendall(buffer)
         else:
-            logger.warning(f"Connection closed at {addr2str(addr)}", extra={"symb": Fore.RED + "[+]" + Fore.RESET})
+            logger.warning(f"Connection closed at {addr2str(addr)}")
             selector.unregister(sender)
             selector.unregister(receiver)
 
             sender.close()
             receiver.close()
     except OSError as e:
-        logger.warning(e, extra={"symb": Fore.RED + "[+]" + Fore.RESET})
+        logger.warning(e)
 
 
 def addr2str(addr):
@@ -37,19 +54,18 @@ def addr2str(addr):
 def accept_conn(sock: socket.socket):
     try:
         client, addr = sock.accept()
-        logger.debug(f"Accepted connection from {addr2str(addr)}", extra={"symb": Fore.GREEN + "[+]" + Fore.RESET})
+        logger.debug(f"Accepted connection from {addr2str(addr)}")
         client.setblocking(False)
         remote = (parsed_args.remote_host, parsed_args.remote_port)
         conn = get_remote_socket(remote)
 
-        logger.debug(f"Tunnel created {addr2str(addr)} -> {addr2str(remote)}",
-                     extra={"symb": Fore.GREEN + "[+]" + Fore.RESET})
+        logger.debug(f"Tunnel created {addr2str(addr)} -> {addr2str(remote)}")
         selector.register(client, selectors.EVENT_READ, data=[forward_conn, client, conn, addr])
         selector.register(conn, selectors.EVENT_READ, data=[forward_conn, conn, client, addr])
     except ConnectionRefusedError:
-        logger.error("Remote connection refused", extra={"symb": Fore.LIGHTRED_EX + "[+]" + Fore.RESET})
+        logger.error("Remote connection refused")
     except Exception as e:
-        logger.error(e, extra={"symb": Fore.LIGHTRED_EX + "[+]" + Fore.RESET})
+        logger.error(e)
 
 
 def parse_arguments():
@@ -76,7 +92,7 @@ def set_listen_socket(sock, host):
 
 
 def handler(sig, frame):
-    logger.warning("Keyboard Interrupted. exiting...", extra={"symb": Fore.RED + "[+]" + Fore.RESET})
+    logger.warning("Keyboard Interrupted. exiting...")
     for key in list(selector.get_map().values()):
         selector.unregister(key.fileobj)
         key.fileobj.close()
@@ -92,7 +108,7 @@ if __name__ == "__main__":
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as serv:
 
-        logger.debug(f"Listening at port {parsed_args.port}", extra={"symb": Fore.GREEN + "[+]" + Fore.RESET})
+        logger.debug(f"Listening at port {parsed_args.port}")
         selector.register(serv, selectors.EVENT_READ, [accept_conn, serv])
         set_listen_socket(serv,parsed_args.host)
         while True:
