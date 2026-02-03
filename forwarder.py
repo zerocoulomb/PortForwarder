@@ -54,10 +54,10 @@ def accept_conn(sock: socket.socket):
 
 def parse_arguments():
     parser = ArgumentParser()
-    parser.add_argument("-lport", "--listen-port", type=int, metavar="LISTEN PORT", dest="listen_port", default=8080)
-    parser.add_argument("-rhost", "--remote-host", type=str, metavar="REMOTE HOST", default="localhost",
-                        dest="remote_host")
-    parser.add_argument("-rport", "--remote-port", type=int, metavar="REMOTE PORT", dest="remote_port", required=True)
+    parser.add_argument("port", type=int, help="Listener port", metavar="PORT")
+    parser.add_argument("-host", type=str , help="Listener host", metavar="HOST", default="0.0.0.0")
+    parser.add_argument("-rhost", "--remote-host", type=str, metavar="REMOTE_HOST", default="localhost")
+    parser.add_argument("-rport", "--remote-port", type=int, metavar="REMOTE_PORT", required=True)
     return parser.parse_args()
 
 
@@ -68,11 +68,11 @@ def get_remote_socket(addr):
     return conn
 
 
-def set_listen_socket(sock):
-    sock.bind(("0.0.0.0", parsed_args.listen_port))
+def set_listen_socket(sock, host):
+    sock.bind((host, parsed_args.port))
     sock.setblocking(False)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    serv.listen()
+    sock.listen()
 
 
 def handler(sig, frame):
@@ -92,9 +92,9 @@ if __name__ == "__main__":
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as serv:
 
-        logger.debug(f"Listening at port {parsed_args.listen_port}", extra={"symb": Fore.GREEN + "[+]" + Fore.RESET})
+        logger.debug(f"Listening at port {parsed_args.port}", extra={"symb": Fore.GREEN + "[+]" + Fore.RESET})
         selector.register(serv, selectors.EVENT_READ, [accept_conn, serv])
-        set_listen_socket(serv)
+        set_listen_socket(serv,parsed_args.host)
         while True:
             events = selector.select()
             for key, mask in events:
